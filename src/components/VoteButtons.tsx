@@ -52,7 +52,7 @@ export default function VoteButtons({
     <button
       onClick={handleVote}
       disabled={loading}
-      className={`flex items-center border-[2px] border-black rounded-full overflow-hidden transition-transform active:scale-95 ${
+      className={`flex items-center h-7 border-[2px] border-black rounded-full overflow-hidden transition-transform active:scale-95 ${
         userVote === 1 ? "bg-foreground text-background" : "bg-surface text-foreground hover:bg-surface-hover"
       }`}
       aria-label="Upvote"

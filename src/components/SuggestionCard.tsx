@@ -48,7 +48,9 @@ export default function SuggestionCard({
   isNew,
   onDeleted,
 }: SuggestionCardProps) {
+  const [reporting, setReporting] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [contentExpanded, setContentExpanded] = useState(false);
   const localUuid = getUserUUID();
   const isAuthor = localUuid === uuid_author;
 
@@ -56,7 +58,6 @@ export default function SuggestionCard({
   const ytLinks = content.match(/(https?:\/\/(?:www\.)?youtu(?:be\.com\/watch\?v=|\.be\/)[\w-]{11})/g) || [];
   const ytIds = ytLinks.map(extractYouTubeID).filter(Boolean) as string[];
 
-  const [reporting, setReporting] = useState(false);
 
   async function handleDelete() {
     if (!confirm("¿Seguro que querés borrar tu sugerencia?")) return;
@@ -98,12 +99,12 @@ export default function SuggestionCard({
   }
 
   if (deleting) {
-    return <div className="bg-surface border-[3px] border-black p-4 rounded-xl animate-pulse">Borrando...</div>;
+    return <div className="bg-[#1c1c1c] border-[3px] border-black p-4 animate-pulse">Borrando...</div>;
   }
 
   return (
     <article
-      className={`bg-surface border-[3px] border-black p-4 rounded-xl flex flex-col gap-4 ${isNew ? "animate-border-fade" : ""}`}
+      className={`bg-[#1c1c1c] border-[3px] border-black p-4 flex flex-col gap-4 ${isNew ? "animate-border-fade" : ""}`}
       id={`suggestion-${id}`}
     >
       <div className="flex gap-4 flex-col sm:flex-row items-start">
@@ -118,7 +119,7 @@ export default function SuggestionCard({
             const cfg = LABEL_CONFIG[label || "sugerencia"] || LABEL_CONFIG["sugerencia"];
             return (
               <div
-                className="w-16 text-center text-[10px] font-black uppercase px-1 py-1 border-[2px] border-black rounded-full overflow-hidden whitespace-nowrap text-ellipsis"
+                className="w-16 h-7 flex items-center justify-center text-center text-[8px] font-bold uppercase px-1 border-[2px] border-black rounded-full leading-tight tracking-tight"
                 style={{ backgroundColor: cfg.bg, color: cfg.text }}
                 title={cfg.display}
               >
@@ -161,7 +162,17 @@ export default function SuggestionCard({
           </div>
 
           <p className="text-foreground break-words leading-relaxed whitespace-pre-wrap">
-            {content}
+            {!contentExpanded && content.length > 300
+              ? content.substring(0, 300) + "..."
+              : content}
+            {!contentExpanded && content.length > 300 && (
+              <button
+                onClick={() => setContentExpanded(true)}
+                className="ml-2 text-blue-500 font-bold hover:underline"
+              >
+                Leer más...
+              </button>
+            )}
           </p>
           
           {ytIds.length > 0 && (
@@ -178,11 +189,11 @@ export default function SuggestionCard({
           )}
           
           <div className="flex justify-end mt-2">
-            <p className="text-xs text-muted font-sans font-bold">
+            <p className="text-xs text-muted font-sans font-bold" title={new Date(created_at).toLocaleString("es")}>
               {new Date(created_at).toLocaleDateString("es", {
-                year: "numeric",
-                month: "short",
                 day: "numeric",
+                month: "numeric",
+                year: "2-digit",
               })}
             </p>
           </div>

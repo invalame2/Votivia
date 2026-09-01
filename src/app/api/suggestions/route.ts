@@ -54,6 +54,7 @@ export async function GET(request: NextRequest) {
 
   const sort = request.nextUrl.searchParams.get("sort") || "recomendados";
   const labelFilter = request.nextUrl.searchParams.get("label") || "";
+  const mineOnly = request.nextUrl.searchParams.get("mine") === "true";
 
   const enriched = (suggestions || []).map((s: any) => ({
     id: s.id,
@@ -66,8 +67,11 @@ export async function GET(request: NextRequest) {
     userVote: voteMap[s.id]?.userVote || 0,
   }));
 
-  // Label filter
-  const filtered = labelFilter ? enriched.filter(s => s.label === labelFilter) : enriched;
+  // Label & Mine filter
+  let filtered = labelFilter ? enriched.filter(s => s.label === labelFilter) : enriched;
+  if (mineOnly) {
+    filtered = filtered.filter(s => s.uuid_author === uuid);
+  }
 
   // Sort logic
   if (sort === "mas_popular") {
@@ -107,7 +111,7 @@ export async function POST(request: NextRequest) {
   const safeLabel = validLabels.includes(label) ? label : "sugerencia";
 
   const trimmed = content.trim();
-  if (trimmed.length === 0 || trimmed.length > 280) {
+  if (trimmed.length === 0 || trimmed.length > 600) {
     return Response.json(
       { error: "Contenido inválido." },
       { status: 400 }

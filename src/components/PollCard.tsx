@@ -39,7 +39,7 @@ export default function PollCard({
         <button
           onClick={() => onVote("a")}
           className={`flex-1 flex flex-col items-center justify-center border-[3px] border-black bg-surface rounded-xl transition-colors active:scale-[0.99] group overflow-hidden relative ${
-            optionAImage ? "" : "hover:bg-[#e5e5e5] hover:text-black"
+            optionAImage ? "" : "hover:bg-[#2a2a2a]"
           }`}
           id="poll-option-a"
         >
@@ -62,7 +62,7 @@ export default function PollCard({
         <button
           onClick={() => onVote("b")}
           className={`flex-1 flex flex-col items-center justify-center border-[3px] border-black bg-surface rounded-xl transition-colors active:scale-[0.99] group overflow-hidden relative ${
-            optionBImage ? "" : "hover:bg-[#e5e5e5] hover:text-black"
+            optionBImage ? "" : "hover:bg-[#2a2a2a]"
           }`}
           id="poll-option-b"
         >

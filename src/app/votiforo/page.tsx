@@ -55,22 +55,27 @@ export default function SugerenciasPage() {
   const [loadingMore, setLoadingMore] = useState(false);
   const [sort, setSort] = useState("recomendados");
   const [labelFilter, setLabelFilter] = useState("");
+  const [mineFilter, setMineFilter] = useState(false);
   
   const loaderRef = useRef<HTMLDivElement>(null);
+  const mainFormRef = useRef<HTMLFormElement>(null);
+  const [isStickyVisible, setIsStickyVisible] = useState(false);
 
   useEffect(() => {
     ensureProfile();
   }, []);
 
-  const fetchSuggestions = useCallback(async (pageNum: number, currentSort: string, currentLabel?: string) => {
+  const fetchSuggestions = useCallback(async (pageNum: number, currentSort: string, currentLabel?: string, currentMine?: boolean) => {
     const uuid = getUserUUID();
     try {
       if (pageNum === 1) setLoading(true);
       else setLoadingMore(true);
 
       const lbl = currentLabel !== undefined ? currentLabel : labelFilter;
+      const isMine = currentMine !== undefined ? currentMine : mineFilter;
       const labelParam = lbl ? `&label=${lbl}` : "";
-      const res = await fetch(`/api/suggestions?uuid=${uuid}&page=${pageNum}&sort=${currentSort}${labelParam}`);
+      const mineParam = isMine ? "&mine=true" : "";
+      const res = await fetch(`/api/suggestions?uuid=${uuid}&page=${pageNum}&sort=${currentSort}${labelParam}${mineParam}`);
       if (res.ok) {
         const data = await res.json();
         if (pageNum === 1) {
@@ -90,8 +95,8 @@ export default function SugerenciasPage() {
 
   // Initial load
   useEffect(() => {
-    fetchSuggestions(1, sort, labelFilter);
-  }, [fetchSuggestions, sort, labelFilter]);
+    fetchSuggestions(1, sort, labelFilter, mineFilter);
+  }, [fetchSuggestions, sort, labelFilter, mineFilter]);
 
   // Infinite scroll observer
   useEffect(() => {
@@ -102,7 +107,7 @@ export default function SugerenciasPage() {
       if (entries[0].isIntersecting) {
         setPage(prev => {
           const next = prev + 1;
-          fetchSuggestions(next, sort, labelFilter);
+          fetchSuggestions(next, sort, labelFilter, mineFilter);
           return next;
         });
       }
@@ -113,13 +118,29 @@ export default function SugerenciasPage() {
     return () => {
       observer.unobserve(currentLoader);
     };
-  }, [hasMore, loading, loadingMore, fetchSuggestions, labelFilter]);
+  }, [hasMore, loading, loadingMore, fetchSuggestions, sort, labelFilter, mineFilter]);
+
+  // Observer for sticky form
+  useEffect(() => {
+    const currentForm = mainFormRef.current;
+    if (!currentForm) return;
+
+    const stickyObserver = new IntersectionObserver(
+      ([entry]) => {
+        // If the form is less than 0 intersection, it's out of view
+        setIsStickyVisible(!entry.isIntersecting && entry.boundingClientRect.top < 0);
+      },
+      { threshold: 0 }
+    );
+    stickyObserver.observe(currentForm);
+    return () => stickyObserver.unobserve(currentForm);
+  }, []);
 
   useEffect(() => {
     const timer = setInterval(() => {
       const cd = checkCooldown();
-      if (!cd.ok && cd.remaining) {
-        setCooldownRemaining(cd.remaining);
+      if (!cd.ok && cd.remainingMs) {
+        setCooldownRemaining(Math.ceil(cd.remainingMs / 1000));
       } else {
         setCooldownRemaining(0);
       }
@@ -205,12 +226,37 @@ export default function SugerenciasPage() {
     }
   }
 
-  const scrollToPost = async (id: string) => {
+  const scrollToPost = async (id: string, commentId?: string) => {
+    const handleScrollAndFlash = (postId: string, cId?: string) => {
+      const el = document.getElementById(`suggestion-${postId}`);
+      if (el) {
+        el.scrollIntoView({ behavior: "smooth", block: "center" });
+        if (!cId) {
+          el.classList.add("animate-border-fade");
+          setTimeout(() => el?.classList.remove("animate-border-fade"), 2000);
+        } else {
+          // Open comments if not open
+          const toggleBtn = document.getElementById(`toggle-comments-${postId}`);
+          if (toggleBtn && toggleBtn.textContent?.includes("+ Respuestas")) {
+            toggleBtn.click();
+          }
+          
+          // Wait for render
+          setTimeout(() => {
+            const commentEl = document.getElementById(`comment-${cId}`);
+            if (commentEl) {
+              commentEl.scrollIntoView({ behavior: "smooth", block: "center" });
+              commentEl.classList.add("animate-flash-comment");
+              setTimeout(() => commentEl.classList.remove("animate-flash-comment"), 2000);
+            }
+          }, 400);
+        }
+      }
+    };
+
     let el = document.getElementById(`suggestion-${id}`);
     if (el) {
-      el.scrollIntoView({ behavior: "smooth", block: "center" });
-      el.classList.add("animate-border-fade");
-      setTimeout(() => el?.classList.remove("animate-border-fade"), 2000);
+      handleScrollAndFlash(id, commentId);
       return;
     }
 
@@ -239,12 +285,7 @@ export default function SugerenciasPage() {
           found = true;
           // Wait for render
           setTimeout(() => {
-            const newEl = document.getElementById(`suggestion-${id}`);
-            if (newEl) {
-              newEl.scrollIntoView({ behavior: "smooth", block: "center" });
-              newEl.classList.add("animate-border-fade");
-              setTimeout(() => newEl.classList.remove("animate-border-fade"), 2000);
-            }
+            handleScrollAndFlash(id, commentId);
           }, 100);
         }
       } else {
@@ -269,8 +310,9 @@ export default function SugerenciasPage() {
       </div>
 
       <form
+        ref={mainFormRef}
         onSubmit={handleSubmit}
-        className="mb-6 bg-surface p-4 border-[3px] border-black flex flex-col gap-3 rounded-xl"
+        className="mb-6 bg-[#1c1c1c] p-4 border-[3px] border-black flex flex-col gap-3 rounded-none"
       >
         {/* Label selector */}
         <div className="flex gap-2 flex-wrap">
@@ -294,8 +336,13 @@ export default function SugerenciasPage() {
         <textarea
           value={newContent}
           onChange={(e) => setNewContent(e.target.value)}
-          placeholder="Escribe tu idea de video aquí..."
-          className="w-full h-24 border-[3px] border-black bg-background text-foreground p-2 resize-none focus:outline-none font-sans font-bold rounded-xl"
+          placeholder={
+            selectedLabel === "idea" ? "Escribir una idea de video" :
+            selectedLabel === "sugerencia" ? "Escribe una opinión o ayuda a la comunidad" :
+            selectedLabel === "no_se" ? "Escribe lo que quieras" :
+            "Escribir una idea de video"
+          }
+          className="w-full h-24 border-[3px] border-black bg-background text-foreground p-2 resize-none focus:outline-none font-sans font-bold rounded-none"
           maxLength={MAX_CONTENT_LENGTH}
         />
         <div className="flex justify-between items-center">
@@ -336,13 +383,76 @@ export default function SugerenciasPage() {
             }}
             className={`px-3 py-1 text-xs font-black uppercase border-[2px] border-black rounded-full transition-colors ${
               labelFilter === opt.value
-                ? "bg-foreground text-background"
-                : "bg-surface hover:bg-surface-hover"
+                ? "bg-foreground text-background scale-105"
+                : "bg-transparent text-foreground hover:bg-surface"
             }`}
           >
             {opt.display}
           </button>
         ))}
+        
+        <button
+          onClick={() => {
+            setMineFilter(!mineFilter);
+            setPage(1);
+          }}
+          className={`ml-auto px-3 py-1 text-xs font-black uppercase border-[2px] border-black rounded-full transition-colors ${
+            mineFilter
+              ? "bg-blue-500 text-white border-blue-700 scale-105"
+              : "bg-transparent text-foreground hover:bg-surface"
+          }`}
+        >
+          Mis Votiposts
+        </button>
+      </div>
+
+
+      {/* Sticky Minimal Form */}
+      <div
+        className={`fixed top-0 left-0 right-0 z-40 transition-transform duration-300 flex justify-center pointer-events-none ${
+          isStickyVisible ? "translate-y-0" : "-translate-y-full"
+        }`}
+      >
+        <div className="w-full max-w-4xl px-4 mt-2 pointer-events-auto">
+          <form
+            onSubmit={handleSubmit}
+            className="bg-[#1c1c1c] p-2 border-[3px] border-black flex flex-col sm:flex-row gap-2 shadow-lg"
+          >
+            <div className="flex gap-1 flex-wrap shrink-0 items-center">
+              {LABELS.map(lbl => (
+                <button
+                  key={lbl.value}
+                  type="button"
+                  onClick={() => setSelectedLabel(lbl.value)}
+                  className={`px-2 py-1 text-[10px] font-black uppercase border-[2px] border-black transition-all ${
+                    selectedLabel === lbl.value ? "scale-105" : "opacity-60 hover:opacity-100"
+                  }`}
+                  style={{
+                    backgroundColor: selectedLabel === lbl.value ? lbl.bg : "transparent",
+                    color: selectedLabel === lbl.value ? lbl.text : "inherit",
+                  }}
+                >
+                  {lbl.display}
+                </button>
+              ))}
+            </div>
+            <input
+              type="text"
+              value={newContent}
+              onChange={(e) => setNewContent(e.target.value)}
+              placeholder="Escribe tu idea..."
+              className="flex-1 border-[2px] border-black bg-background text-foreground px-2 py-1 focus:outline-none font-sans font-bold text-sm min-w-0"
+              maxLength={MAX_CONTENT_LENGTH}
+            />
+            <button
+              type="submit"
+              disabled={submitting || cooldownRemaining > 0}
+              className="bg-foreground text-background font-black uppercase px-4 py-1 text-xs border-[2px] border-black hover:opacity-80 transition-opacity disabled:opacity-50 shrink-0"
+            >
+              {submitting ? "..." : cooldownRemaining > 0 ? `${cooldownRemaining}s` : "Enviar"}
+            </button>
+          </form>
+        </div>
       </div>
 
       <div className="flex flex-col gap-4">

@@ -135,13 +135,19 @@ export default function EncuestasPage() {
         </div>
       ) : completed ? (
         <div className="flex flex-1 items-center justify-center">
-          <div className="border-[3px] border-black bg-surface p-8 text-center max-w-sm">
-            <p className="text-xl font-black text-foreground mb-2 font-sans font-bold">
+          <div className="border-[3px] border-black bg-surface p-8 text-center max-w-sm flex flex-col items-center gap-4">
+            <p className="text-xl font-black text-foreground mb-1 font-sans font-bold">
               ¡Gracias!
             </p>
             <p className="text-muted text-sm font-sans font-bold">
               Has completado todas las encuestas disponibles.
             </p>
+            <Link
+              href="/votiforo"
+              className="mt-2 bg-foreground text-background font-black uppercase px-6 py-3 border-[3px] border-black hover:opacity-80 transition-opacity text-sm"
+            >
+              Ir al VotiForo →
+            </Link>
           </div>
         </div>
       ) : questions[currentIndex] ? (

@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import AdminLogin from "@/components/AdminLogin";
 import ManagePolls from "@/components/ManagePolls";
+import CommentSection from "@/components/CommentSection";
 
 interface PollResult {
   id: string;
@@ -31,6 +32,8 @@ interface ReportResult {
   comment_id: string;
   content: string;
   author: string;
+  target_id: string;
+  target_type: string;
 }
 
 export default function AdminPage() {
@@ -39,7 +42,7 @@ export default function AdminPage() {
   const [suggestions, setSuggestions] = useState<SuggestionResult[]>([]);
   const [reports, setReports] = useState<ReportResult[]>([]);
   const [loading, setLoading] = useState(false);
-  const [activeTab, setActiveTab] = useState<"polls" | "manage-polls" | "suggestions" | "reports">("polls");
+  const [activeTab, setActiveTab] = useState<"polls" | "manage-polls" | "suggestions" | "reports" | "test-polls">("polls");
   const [categoryFilter, setCategoryFilter] = useState("all");
 
   const [selectedSuggestions, setSelectedSuggestions] = useState<Set<string>>(new Set());
@@ -47,6 +50,18 @@ export default function AdminPage() {
 
   const [selectedReports, setSelectedReports] = useState<Set<string>>(new Set());
   const [lastSelectedReport, setLastSelectedReport] = useState<string | null>(null);
+
+  // Test polls state
+  const [testCategory, setTestCategory] = useState("");
+  const [testIndex, setTestIndex] = useState(0);
+  const [testAnswered, setTestAnswered] = useState<Set<string>>(new Set());
+
+  // Suggestion category edit state
+  const [editingCategoryId, setEditingCategoryId] = useState<string | null>(null);
+  const [editingCategoryValue, setEditingCategoryValue] = useState("");
+
+  // Suggestion search
+  const [suggestionSearch, setSuggestionSearch] = useState("");
 
   useEffect(() => {
     if (typeof window !== "undefined" && localStorage.getItem("votivia_admin")) {
@@ -199,6 +214,25 @@ export default function AdminPage() {
   }
 
 
+  async function handleChangeSuggestionCategory(id: string, newLabel: string) {
+    try {
+      const pass = localStorage.getItem("votivia_admin_pass") || "";
+      const res = await fetch("/api/suggestions/" + id, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", "x-admin-password": pass },
+        body: JSON.stringify({ label: newLabel }),
+      });
+      if (res.ok) {
+        setEditingCategoryId(null);
+        fetchResults();
+      } else {
+        alert("Error al cambiar la categoría.");
+      }
+    } catch {
+      alert("Error de conexión.");
+    }
+  }
+
   if (!authenticated) {
     return (
       <main className="flex flex-col flex-1 px-4 py-8">
@@ -209,7 +243,12 @@ export default function AdminPage() {
 
   const categories = ["all", ...new Set(pollResults.map((p) => p.category).filter(Boolean))];
   const filteredPolls = categoryFilter === "all" ? pollResults : pollResults.filter((p) => p.category === categoryFilter);
-  const sortedSuggestions = [...suggestions].sort((a, b) => b.score - a.score);
+  
+  let sortedSuggestions = [...suggestions].sort((a, b) => b.score - a.score);
+  if (suggestionSearch) {
+    const term = suggestionSearch.toLowerCase();
+    sortedSuggestions = sortedSuggestions.filter(s => s.content.toLowerCase().includes(term));
+  }
 
   const handleSuggestionClick = (e: React.MouseEvent, id: string, index: number) => {
     if ((e.target as HTMLElement).closest("button")) return; // Ignore if clicking a button
@@ -313,6 +352,14 @@ export default function AdminPage() {
         >
           Reportes ({reports.length})
         </button>
+        <button
+          onClick={() => { setActiveTab("test-polls"); setTestIndex(0); setTestAnswered(new Set()); }}
+          className={`flex-1 py-2 font-sans font-bold text-sm uppercase border-l-[3px] border-black ${
+            activeTab === "test-polls" ? "bg-yellow-400 text-black" : "bg-surface text-foreground hover:bg-surface-hover"
+          }`}
+        >
+          🧪 Testear
+        </button>
       </div>
 
       {loading ? (
@@ -392,6 +439,13 @@ export default function AdminPage() {
         </>
       ) : activeTab === "suggestions" ? (
         <div className="space-y-3">
+          <input
+            type="text"
+            placeholder="Buscar en sugerencias..."
+            value={suggestionSearch}
+            onChange={e => setSuggestionSearch(e.target.value)}
+            className="w-full bg-background border-[3px] border-black text-foreground font-sans font-bold p-2 focus:outline-none mb-4"
+          />
           {selectedSuggestions.size > 0 && (
             <div className="flex gap-2 mb-4">
               <button
@@ -415,21 +469,61 @@ export default function AdminPage() {
               </span>
               <div className="flex-1 min-w-0">
                 <p className="text-sm text-foreground break-words">{s.content}</p>
-                <div className="flex justify-between items-center mt-2">
+                <div className="flex justify-between items-center mt-2 flex-wrap gap-2">
                   <p className="text-xs text-muted font-sans font-bold">
                     {new Date(s.created_at).toLocaleDateString("es")} · {s.comment_count} respuestas
                   </p>
-                  <button
-                    onClick={() => handleDeleteSuggestion(s.id)}
-                    className="text-muted hover:text-red-500 transition-colors p-1"
-                    title="Eliminar sugerencia"
-                    aria-label="Eliminar sugerencia"
-                  >
-                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-                      <polyline points="3 6 5 6 21 6"></polyline>
-                      <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-                    </svg>
-                  </button>
+                  <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                    {editingCategoryId === s.id ? (
+                      <>
+                        <select
+                          value={editingCategoryValue}
+                          onChange={(e) => setEditingCategoryValue(e.target.value)}
+                          className="bg-background border-[2px] border-black text-xs font-bold px-2 py-1 focus:outline-none"
+                        >
+                          <option value="idea">Idea</option>
+                          <option value="sugerencia">Feedback</option>
+                          <option value="no_se">No sé</option>
+                        </select>
+                        <button
+                          onClick={() => handleChangeSuggestionCategory(s.id, editingCategoryValue)}
+                          className="bg-foreground text-background text-xs font-black px-2 py-1 border-[2px] border-black hover:opacity-80"
+                        >
+                          ✓
+                        </button>
+                        <button
+                          onClick={() => setEditingCategoryId(null)}
+                          className="bg-surface text-foreground text-xs font-black px-2 py-1 border-[2px] border-black hover:bg-surface-hover"
+                        >
+                          ✕
+                        </button>
+                      </>
+                    ) : (
+                      <button
+                        onClick={() => { setEditingCategoryId(s.id); setEditingCategoryValue((s as any).label || "sugerencia"); }}
+                        className="text-muted hover:text-foreground text-xs font-bold border-[2px] border-black px-2 py-1 bg-background hover:bg-surface-hover transition-colors"
+                        title="Cambiar categoría"
+                      >
+                        🏷 Categ.
+                      </button>
+                    )}
+                    <button
+                      onClick={() => handleDeleteSuggestion(s.id)}
+                      className="text-muted hover:text-red-500 transition-colors p-1"
+                      title="Eliminar sugerencia"
+                      aria-label="Eliminar sugerencia"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="3 6 5 6 21 6"></polyline>
+                        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+                
+                {/* Admin Comment Section */}
+                <div className="mt-4 pt-4 border-t-[3px] border-black/20 w-full" onClick={(e) => e.stopPropagation()}>
+                  <CommentSection suggestionId={s.id} isAdmin={true} />
                 </div>
               </div>
             </div>
@@ -437,6 +531,108 @@ export default function AdminPage() {
           {sortedSuggestions.length === 0 && (
             <p className="text-center text-muted font-sans font-bold">Sin sugerencias aún.</p>
           )}
+        </div>
+      ) : activeTab === "test-polls" ? (
+        /* Test Polls Panel */
+        <div className="flex flex-col gap-6">
+          <div className="border-[3px] border-yellow-400 bg-surface p-4 rounded-xl">
+            <p className="text-yellow-400 font-black text-sm uppercase mb-3">🧪 Modo Prueba — Vista del usuario</p>
+            <div className="flex flex-wrap gap-2 items-center">
+              <span className="text-sm font-bold text-muted">Categoría:</span>
+              <button
+                onClick={() => { setTestCategory(""); setTestIndex(0); setTestAnswered(new Set()); }}
+                className={`px-3 py-1 text-xs font-black border-[3px] border-black uppercase ${
+                  testCategory === "" ? "bg-foreground text-background" : "bg-surface text-foreground hover:bg-surface-hover"
+                }`}
+              >
+                Todas
+              </button>
+              {categories.filter(c => c !== "all").map(cat => (
+                <button
+                  key={cat}
+                  onClick={() => { setTestCategory(cat); setTestIndex(0); setTestAnswered(new Set()); }}
+                  className={`px-3 py-1 text-xs font-black border-[3px] border-black uppercase ${
+                    testCategory === cat ? "bg-foreground text-background" : "bg-surface text-foreground hover:bg-surface-hover"
+                  }`}
+                >
+                  {cat}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {(() => {
+            const testPolls = testCategory
+              ? pollResults.filter(p => p.category === testCategory)
+              : pollResults;
+            const current = testPolls[testIndex];
+
+            if (testPolls.length === 0) {
+              return <p className="text-center text-muted font-bold">No hay encuestas para esta categoría.</p>;
+            }
+
+            if (testIndex >= testPolls.length) {
+              return (
+                <div className="border-[3px] border-black bg-surface p-8 text-center flex flex-col items-center gap-4">
+                  <p className="text-xl font-black text-foreground">¡Gracias!</p>
+                  <p className="text-muted text-sm font-bold">Has completado todas las encuestas disponibles.</p>
+                  <button
+                    onClick={() => { setTestIndex(0); setTestAnswered(new Set()); }}
+                    className="bg-yellow-400 text-black font-black uppercase px-6 py-2 border-[3px] border-black hover:opacity-80"
+                  >
+                    Reiniciar test
+                  </button>
+                </div>
+              );
+            }
+
+            return (
+              <div className="flex flex-col gap-4">
+                <div className="flex justify-between items-center">
+                  <span className="text-xs font-black text-muted uppercase">
+                    Encuesta {testIndex + 1} / {testPolls.length}
+                    {current.category && <span className="ml-2 text-yellow-400">[{current.category}]</span>}
+                  </span>
+                  <button
+                    onClick={() => { setTestIndex(0); setTestAnswered(new Set()); }}
+                    className="text-xs font-bold text-muted hover:text-foreground border-[2px] border-black px-2 py-1 bg-background hover:bg-surface-hover"
+                  >
+                    Reiniciar
+                  </button>
+                </div>
+
+                <div className="border-[3px] border-yellow-400/30 bg-surface p-6 flex flex-col gap-6">
+                  <h3 className="text-xl font-black text-foreground text-center">{current.question}</h3>
+                  <div className="grid grid-cols-2 gap-4">
+                    {(["a", "b"] as const).map((opt) => {
+                      const text = opt === "a" ? current.option_a_text : current.option_b_text;
+                      const answered = testAnswered.has(current.id);
+                      return (
+                        <button
+                          key={opt}
+                          disabled={answered}
+                          onClick={() => {
+                            setTestAnswered(prev => new Set([...prev, current.id]));
+                            setTimeout(() => setTestIndex(i => i + 1), 600);
+                          }}
+                          className={`border-[3px] border-black p-4 font-black text-sm uppercase transition-all ${
+                            answered
+                              ? "opacity-50 cursor-not-allowed bg-surface"
+                              : "bg-surface hover:bg-foreground hover:text-background active:scale-95"
+                          }`}
+                        >
+                          {text}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <p className="text-xs text-center text-muted font-bold">
+                    Votos reales: A={current.votes_a} ({current.pct_a}%) · B={current.votes_b} ({current.pct_b}%) · Total={current.total}
+                  </p>
+                </div>
+              </div>
+            );
+          })()}
         </div>
       ) : (
         /* Reports List */

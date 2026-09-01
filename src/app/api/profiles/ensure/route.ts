@@ -5,23 +5,21 @@ const NAMES = ["Kiz", "Quizzy", "TriviaMan", "BrainPick", "GuessIt", "PickMe", "
 
 const COLORS = [
   // Blues
-  "#2563eb", "#1d4ed8", "#3b82f6", "#0ea5e9", "#0284c7", "#0369a1",
+  "#3b82f6", "#0ea5e9", "#0284c7", "#60a5fa", "#38bdf8",
   // Greens
-  "#16a34a", "#15803d", "#059669", "#0d9488", "#0f766e",
+  "#22c55e", "#16a34a", "#10b981", "#34d399", "#14b8a6",
   // Purples
-  "#7c3aed", "#6d28d9", "#9333ea", "#a855f7", "#8b5cf6",
+  "#8b5cf6", "#a855f7", "#c084fc", "#d8b4fe", "#e879f9",
   // Reds/Pinks
-  "#dc2626", "#b91c1c", "#e11d48", "#be185d", "#db2777",
+  "#ef4444", "#f43f5e", "#f472b6", "#fb7185", "#ec4899",
   // Oranges/Ambers
-  "#ea580c", "#d97706", "#b45309", "#ca8a04",
+  "#f97316", "#fb923c", "#f59e0b", "#fbbf24", "#fcd34d",
   // Teals/Cyan
-  "#0891b2", "#0e7490", "#06b6d4",
+  "#06b6d4", "#2dd4bf", "#67e8f9",
   // Indigo
-  "#4f46e5", "#4338ca",
-  // Rose
-  "#f43f5e", "#e11d48",
+  "#6366f1", "#818cf8",
   // Lime/emerald
-  "#65a30d", "#4d7c0f",
+  "#84cc16", "#a3e635",
 ];
 
 function getRandomItem<T>(arr: T[]): T {

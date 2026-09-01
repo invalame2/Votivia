@@ -26,6 +26,13 @@ export async function GET(request: NextRequest) {
     const unanswered = (questions || []).filter(
       (q) => !answeredIds.has(q.id)
     );
+    
+    // Shuffle the unanswered questions
+    for (let i = unanswered.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [unanswered[i], unanswered[j]] = [unanswered[j], unanswered[i]];
+    }
+
     return Response.json({ questions: unanswered });
   }
 

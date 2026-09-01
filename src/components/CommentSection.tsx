@@ -24,13 +24,15 @@ function CommentItem({
   allComments, 
   suggestionId, 
   onCommentAdded,
-  onCommentDeleted
+  onCommentDeleted,
+  isAdmin
 }: { 
   comment: CommentType; 
   allComments: CommentType[]; 
   suggestionId: string;
   onCommentAdded: (c: CommentType) => void;
   onCommentDeleted: (id: string) => void;
+  isAdmin?: boolean;
 }) {
   const [replying, setReplying] = useState(false);
   const [replyText, setReplyText] = useState("");
@@ -51,7 +53,7 @@ function CommentItem({
       alert(validation.error);
       return;
     }
-    if (!checkCooldown().ok) {
+    if (!checkCooldown("comment").ok) {
       alert("Espera unos segundos antes de publicar de nuevo.");
       return;
     }
@@ -75,7 +77,7 @@ function CommentItem({
 
       if (res.ok) {
         const data = await res.json();
-        setCooldown();
+        setCooldown("comment");
         markAsPosted(replyText);
         onCommentAdded(data.comment);
         setReplyText("");
@@ -133,7 +135,7 @@ function CommentItem({
   }
 
   return (
-    <div className="border-l-[3px] border-black pl-3 py-1 mt-2">
+    <div id={`comment-${comment.id}`} className="border-l-[3px] border-black pl-3 py-1 mt-2 transition-colors duration-500">
       <div className="flex justify-between items-start">
         <div className="text-xs font-sans font-bold mb-1">
           {comment.profiles ? (
@@ -145,7 +147,7 @@ function CommentItem({
           )}
         </div>
         <div className="flex gap-2 text-xs font-sans font-bold items-center">
-          {isAuthor ? (
+          {isAuthor || isAdmin ? (
              <button onClick={handleDelete} className="text-muted hover:text-red-500 transition-colors" aria-label="Eliminar" title="Eliminar">
                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
                  <polyline points="3 6 5 6 21 6"></polyline>
@@ -163,8 +165,12 @@ function CommentItem({
       <p className="text-sm text-foreground break-words">{comment.content}</p>
       
       <div className="flex gap-4 items-center mt-1">
-        <p className="text-[10px] text-muted font-sans font-bold">
-          {new Date(comment.created_at).toLocaleDateString("es")}
+        <p className="text-[10px] text-muted font-sans font-bold" title={new Date(comment.created_at).toLocaleString("es")}>
+          {new Date(comment.created_at).toLocaleDateString("es", {
+            day: "numeric",
+            month: "numeric",
+            year: "2-digit"
+          })}
         </p>
         <button 
           onClick={() => setReplying(!replying)} 
@@ -202,13 +208,19 @@ function CommentItem({
           suggestionId={suggestionId} 
           onCommentAdded={onCommentAdded} 
           onCommentDeleted={onCommentDeleted}
+          isAdmin={isAdmin}
         />
       ))}
     </div>
   );
 }
 
-export default function CommentSection({ suggestionId }: { suggestionId: string }) {
+interface Props {
+  suggestionId: string;
+  isAdmin?: boolean;
+}
+
+export default function CommentSection({ suggestionId, isAdmin }: Props) {
   const [comments, setComments] = useState<CommentType[]>([]);
   const [commentCount, setCommentCount] = useState<number | null>(null);
   const [expanded, setExpanded] = useState(false);
@@ -263,7 +275,7 @@ export default function CommentSection({ suggestionId }: { suggestionId: string 
       alert(validation.error);
       return;
     }
-    if (!checkCooldown().ok) {
+    if (!checkCooldown("comment").ok) {
       alert("Espera unos segundos antes de publicar de nuevo.");
       return;
     }
@@ -287,7 +299,7 @@ export default function CommentSection({ suggestionId }: { suggestionId: string 
 
       if (res.ok) {
         const data = await res.json();
-        setCooldown();
+        setCooldown("comment");
         markAsPosted(newComment);
         setComments((prev) => [...prev, data.comment]);
         setNewComment("");
@@ -330,6 +342,7 @@ export default function CommentSection({ suggestionId }: { suggestionId: string 
                 suggestionId={suggestionId}
                 onCommentAdded={(c) => setComments(p => [...p, c])}
                 onCommentDeleted={(id) => setComments(p => p.filter(x => x.id !== id))}
+                isAdmin={isAdmin}
               />
             ))
           )}

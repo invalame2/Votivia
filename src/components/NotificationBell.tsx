@@ -12,13 +12,14 @@ interface Notification {
 }
 
 interface Props {
-  onNotificationClick: (suggestionId: string) => void;
+  onNotificationClick: (suggestionId: string, commentId?: string) => void;
 }
 
 export default function NotificationBell({ onNotificationClick }: Props) {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [readIds, setReadIds] = useState<Set<string>>(new Set());
   const [isOpen, setIsOpen] = useState(false);
+  const [displayCount, setDisplayCount] = useState(5);
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -61,18 +62,21 @@ export default function NotificationBell({ onNotificationClick }: Props) {
 
   const handleOpen = () => {
     setIsOpen(!isOpen);
-    if (!isOpen && unreadCount > 0) {
-      // Mark all current as read
-      const newReadIds = new Set(readIds);
-      notifications.forEach((n) => newReadIds.add(n.id));
-      setReadIds(newReadIds);
-      localStorage.setItem("votivia_read_notifications", JSON.stringify(Array.from(newReadIds)));
+    if (!isOpen) {
+      setDisplayCount(5); // Reset to 5 when opening
+      if (unreadCount > 0) {
+        // Mark all current as read
+        const newReadIds = new Set(readIds);
+        notifications.forEach((n) => newReadIds.add(n.id));
+        setReadIds(newReadIds);
+        localStorage.setItem("votivia_read_notifications", JSON.stringify(Array.from(newReadIds)));
+      }
     }
   };
 
-  const handleItemClick = (suggestionId: string) => {
+  const handleItemClick = (suggestionId: string, commentId?: string) => {
     setIsOpen(false);
-    onNotificationClick(suggestionId);
+    onNotificationClick(suggestionId, commentId);
   };
 
   return (
@@ -94,31 +98,41 @@ export default function NotificationBell({ onNotificationClick }: Props) {
       </button>
 
       {isOpen && (
-        <div className="absolute right-0 mt-2 w-64 sm:w-80 bg-surface border-[3px] border-black rounded-xl shadow-lg z-50 overflow-hidden flex flex-col max-h-96">
-          <div className="bg-background border-b-[2px] border-black p-3">
+        <div className="absolute right-0 mt-2 w-64 sm:w-80 bg-[#1c1c1c] border-[3px] border-black rounded-none shadow-lg z-50 overflow-hidden flex flex-col max-h-96">
+          <div className="bg-background border-b-[3px] border-black p-3">
             <h3 className="font-black text-sm uppercase">Notificaciones</h3>
           </div>
           <div className="overflow-y-auto flex-1">
             {notifications.length === 0 ? (
               <div className="p-4 text-center text-sm font-bold text-muted">No tienes notificaciones.</div>
             ) : (
-              notifications.map((n) => (
-                <button
-                  key={n.id}
-                  onClick={() => handleItemClick(n.suggestion_id)}
-                  className="w-full text-left p-3 border-b border-black/20 hover:bg-background transition-colors flex flex-col gap-1 last:border-b-0"
-                >
-                  <span className="text-sm font-bold text-foreground">{n.message}</span>
-                  <span className="text-xs font-bold text-muted">
-                    {new Date(n.created_at).toLocaleDateString("es", {
-                      day: "numeric",
-                      month: "short",
-                      hour: "2-digit",
-                      minute: "2-digit",
-                    })}
-                  </span>
-                </button>
-              ))
+              <>
+                {notifications.slice(0, displayCount).map((n) => (
+                  <button
+                    key={n.id}
+                    onClick={() => handleItemClick(n.suggestion_id, (n as any).comment_id)}
+                    className="w-full text-left p-3 border-b-[3px] border-black hover:bg-background transition-colors flex flex-col gap-1 last:border-b-0"
+                  >
+                    <span className="text-sm font-bold text-foreground">{n.message}</span>
+                    <span className="text-xs font-bold text-muted">
+                      {new Date(n.created_at).toLocaleDateString("es", {
+                        day: "numeric",
+                        month: "short",
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })}
+                    </span>
+                  </button>
+                ))}
+                {notifications.length > displayCount && (
+                  <button
+                    onClick={() => setDisplayCount(prev => prev + 5)}
+                    className="w-full p-2 text-center text-xs font-black uppercase text-foreground bg-surface hover:bg-foreground hover:text-background transition-colors border-t-[3px] border-black"
+                  >
+                    + Cargar más
+                  </button>
+                )}
+              </>
             )}
           </div>
         </div>

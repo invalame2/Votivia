@@ -6,12 +6,28 @@ interface YTVideo {
   title: string;
   thumbnail: string;
   publishedAt: string;
+  manualMode?: boolean;
 }
 
 async function getYouTubeVideos(): Promise<YTVideo[]> {
   try {
-    const baseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-      ? `https://${process.env.VERCEL_URL || "localhost:3000"}`
+    const manualVideos = process.env.YOUTUBE_MANUAL_VIDEOS;
+
+    // If manual videos are configured, return them directly (no API key needed)
+    if (manualVideos) {
+      const ids = manualVideos.split(",").map((s) => s.trim()).filter(Boolean);
+      return ids.map((id) => ({
+        id,
+        title: "",
+        thumbnail: `https://img.youtube.com/vi/${id}/mqdefault.jpg`,
+        publishedAt: new Date().toISOString(),
+        manualMode: true,
+      }));
+    }
+
+    // Fallback: fetch via API route (for channel mode)
+    const baseUrl = process.env.VERCEL_URL
+      ? `https://${process.env.VERCEL_URL}`
       : "http://localhost:3000";
     const res = await fetch(`${baseUrl}/api/youtube/recent`, {
       next: { revalidate: 3600 },
@@ -23,6 +39,7 @@ async function getYouTubeVideos(): Promise<YTVideo[]> {
   } catch {}
   return [];
 }
+
 
 export default async function Home() {
   const videos = await getYouTubeVideos();
@@ -44,9 +61,9 @@ export default async function Home() {
 
         <div className="flex flex-col gap-4 w-full max-w-sm">
           <Link
-            href="/sugerencias"
+            href="/votiforo"
             id="btn-sugerencias"
-            className="flex items-center justify-center bg-surface border-[3px] border-black px-6 py-4 hover:bg-foreground hover:text-background transition-colors active:scale-95 rounded-xl w-full"
+            className="flex items-center justify-center bg-[#171717] border-[3px] border-black px-6 py-4 hover:bg-foreground hover:text-background transition-colors active:scale-95 rounded-xl w-full"
           >
             <span className="font-sans font-extrabold text-2xl text-center leading-tight">
               VotiForo
@@ -56,7 +73,7 @@ export default async function Home() {
           <Link
             href="/encuestas"
             id="btn-encuestas"
-            className="flex items-center justify-center bg-surface border-[3px] border-black px-6 py-4 hover:bg-foreground hover:text-background transition-colors active:scale-95 rounded-xl w-full"
+            className="flex items-center justify-center bg-[#171717] border-[3px] border-black px-6 py-4 hover:bg-foreground hover:text-background transition-colors active:scale-95 rounded-xl w-full"
           >
             <span className="font-sans font-extrabold text-2xl text-center leading-tight">
               Responder encuestas
@@ -66,7 +83,7 @@ export default async function Home() {
       </div>
 
       {/* Right Column: YouTube Feed */}
-      <div className="w-full lg:flex-1 bg-surface border-[3px] border-black rounded-xl p-5 flex flex-col" style={{ minHeight: "420px" }}>
+      <div className="w-full lg:flex-1 bg-[#171717] border-[3px] border-black rounded-xl p-5 flex flex-col" style={{ minHeight: "420px" }}>
         <div className="flex justify-between items-center mb-5">
           <h2 className="font-black text-xl uppercase">Videos recientes</h2>
           <a
@@ -83,29 +100,42 @@ export default async function Home() {
         </div>
 
         {videos.length > 0 ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 flex-1">
+          <div
+            className="flex flex-col gap-2 overflow-y-auto flex-1 pr-1"
+            style={{ maxHeight: "calc(3 * 90px + 2 * 8px)" }}
+          >
             {videos.map((v) => (
               <a
                 key={v.id}
                 href={`https://youtube.com/watch?v=${v.id}`}
                 target="_blank"
                 rel="noreferrer"
-                className="flex flex-col border-[3px] border-black rounded-xl overflow-hidden hover:opacity-80 transition-opacity group"
+                className="flex items-center gap-3 border-[2px] border-black bg-background hover:bg-surface-hover transition-colors group shrink-0"
+                style={{ height: "90px" }}
               >
-                <div className="relative aspect-video bg-black">
+                {/* Thumbnail */}
+                <div className="relative shrink-0 bg-black overflow-hidden" style={{ width: "140px", height: "90px" }}>
                   <img
                     src={v.thumbnail}
-                    alt={v.title}
+                    alt={v.title || "Video de YouTube"}
                     className="w-full h-full object-cover"
                   />
-                  <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                    <div className="bg-red-600 text-white font-black px-3 py-2 rounded-lg border-[2px] border-black text-sm">▶ Ver</div>
+                  <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/30">
+                    <div className="bg-red-600 text-white font-black px-2 py-1 text-xs border-[2px] border-black">▶</div>
                   </div>
                 </div>
-                <div className="p-2 flex-1">
-                  <p className="text-xs font-sans font-bold text-foreground line-clamp-2 leading-snug">{v.title}</p>
+                {/* Info */}
+                <div className="flex-1 min-w-0 py-2 pr-3">
+                  <p className="text-xs font-bold text-foreground leading-snug line-clamp-2">
+                    {v.title || (
+                      <span className="text-muted italic">Ver en YouTube →</span>
+                    )}
+                  </p>
                   <p className="text-[10px] text-muted mt-1 font-bold">
-                    {new Date(v.publishedAt).toLocaleDateString("es", { day: "numeric", month: "short" })}
+                    {v.manualMode
+                      ? "YouTube"
+                      : new Date(v.publishedAt).toLocaleDateString("es", { day: "numeric", month: "short", year: "numeric" })
+                    }
                   </p>
                 </div>
               </a>
@@ -117,7 +147,7 @@ export default async function Home() {
               <path d="M22.54 6.42a2.78 2.78 0 0 0-1.94-2C18.88 4 12 4 12 4s-6.88 0-8.6.46a2.78 2.78 0 0 0-1.94 2A29 29 0 0 0 1 11.75a29 29 0 0 0 .46 5.33 2.78 2.78 0 0 0 1.94 2c1.72.46 8.6.46 8.6.46s6.88 0 8.6-.46a2.78 2.78 0 0 0 1.94-2 29 29 0 0 0 .46-5.33 29 29 0 0 0-.46-5.33z"></path>
               <polygon points="9.75 15.02 15.5 11.75 9.75 8.48 9.75 15.02"></polygon>
             </svg>
-            <p className="font-bold text-muted text-sm">Cargando videos...</p>
+            <p className="font-bold text-muted text-sm">Sin videos configurados.</p>
           </div>
         )}
       </div>
